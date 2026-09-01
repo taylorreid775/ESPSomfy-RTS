@@ -204,7 +204,7 @@ bool ConfigSettings::load() {
   pref.begin("CFG");
   pref.getString("hostname", this->hostname, sizeof(this->hostname));
   this->ssdpBroadcast = pref.getBool("ssdpBroadcast", true);
-  this->checkForUpdate = pref.getBool("checkForUpdate", true);
+  this->checkForUpdate = pref.getBool("checkForUpdate", false);
   this->connType = static_cast<conn_types_t>(pref.getChar("connType", 0x00));
   //Serial.printf("Preference GFG Free Entries: %d\n", pref.freeEntries());
   pref.end();

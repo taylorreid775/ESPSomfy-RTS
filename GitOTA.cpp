@@ -277,24 +277,13 @@ void GitUpdater::loop() {
   }
 }
 void GitUpdater::checkForUpdate() {
-  if(this->status != 0) return; // If we are already checking.
-  Serial.println("Check github for updates...");
-  
-  this->status = GIT_STATUS_CHECK;
-  settings.printAvailHeap();  
+  // This A-OK fork must not install stock rstrouse releases over local firmware.
+  Serial.println("GitHub update check disabled (A-OK fork). Use System firmware upload.");
   this->lastCheck = millis();
-  if(this->checkInternet() == 0) {
-    GitRepo repo;
-    this->updateAvailable = false;
-    this->error = repo.getReleases(2);
-    if(this->error == 0) { // Get 2 releases so we can filter our pre-releases
-      this->setCurrentRelease(repo);
-    }
-    else {
-      this->emitUpdateCheck();
-    }
-  }
+  this->updateAvailable = false;
+  this->error = 0;
   this->status = GIT_STATUS_READY;
+  this->emitUpdateCheck();
 }
 void GitUpdater::setCurrentRelease(GitRepo &repo) {
   this->updateAvailable = false;
@@ -420,54 +409,19 @@ void GitUpdater::setFirmwareFile() {
 }
 
 bool GitUpdater::beginUpdate(const char *version) {
-  Serial.println("Begin update called...");
-  if(strcmp(version, "Main") == 0)  strcpy(this->baseUrl, "https://raw.githubusercontent.com/rstrouse/ESPSomfy-RTS/master/");
-  else sprintf(this->baseUrl, "https://github.com/rstrouse/ESPSomfy-RTS/releases/download/%s/", version);
-  
-  strcpy(this->targetRelease, version);
+  (void)version;
+  Serial.println("GitHub OTA is disabled on this A-OK fork. Flash via System firmware upload.");
+  this->error = -1;
+  this->status = GIT_STATUS_READY;
   this->emitUpdateCheck();
-  this->setFirmwareFile();
-  this->partition = U_FLASH;
-  this->lockFS = this->cancelled = false;
-  this->error = 0;
-  this->error = this->downloadFile();
-  if(this->error == 0 && !this->cancelled) {
-    somfy.commit();
-    strcpy(this->currentFile, "SomfyController.littlefs.bin");
-    this->partition = U_SPIFFS;
-    this->lockFS = true;
-    this->error = this->downloadFile();
-    this->lockFS = false;
-    if(this->error == 0) {
-      settings.fwVersion.parse(version);
-      delay(100);
-      Serial.println("Committing Configuration...");
-      somfy.commit();
-    }
-    rebootDelay.reboot = true;
-    rebootDelay.rebootTime = millis() + 500;
-  }
-  this->status = GIT_UPDATE_COMPLETE;
-  this->emitUpdateCheck();
-  return true;
+  return false;
 }
 bool GitUpdater::recoverFilesystem() {
-  sprintf(this->baseUrl, "https://github.com/rstrouse/ESPSomfy-RTS/releases/download/%s/", settings.fwVersion.name);
-  strcpy(this->currentFile, "SomfyController.littlefs.bin");
-  this->status = GIT_UPDATING;
-  this->partition = U_SPIFFS;
-  this->lockFS = true;
-  this->error = this->downloadFile();
-  this->lockFS = false;
-  if(this->error == 0) {
-    delay(100);
-    Serial.println("Committing Configuration...");
-    somfy.commit();
-  }
-  this->status = GIT_UPDATE_COMPLETE;
-  rebootDelay.reboot = true;
-  rebootDelay.rebootTime = millis() + 500;
-  return true;
+  Serial.println("GitHub filesystem recover is disabled on this A-OK fork.");
+  this->error = -1;
+  this->status = GIT_STATUS_READY;
+  this->emitUpdateCheck();
+  return false;
 }
 bool GitUpdater::endUpdate() { return true; }
 int8_t GitUpdater::downloadFile() {

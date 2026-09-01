@@ -2997,6 +2997,16 @@ class Somfy {
     }
     onShadeProtoChanged(el) {
         document.getElementById('somfyShade').setAttribute('data-proto', el.value);
+        const isAok = parseInt(el.value, 10) === 10;
+        const pairBtn = document.getElementById('btnPairShade');
+        const unpairBtn = document.getElementById('btnUnpairShade');
+        if (isAok) {
+            if (pairBtn) pairBtn.innerText = 'Send Prog (pair)';
+            if (unpairBtn) unpairBtn.style.display = 'none';
+        }
+        else {
+            if (pairBtn) pairBtn.innerText = 'Pair Shade';
+        }
     }
     openEditRoom(roomId) {
         
@@ -3052,10 +3062,12 @@ class Somfy {
                     shade.downTime = shade.upTime = 10000;
                     shade.tiltTime = 7000;
                     shade.bitLength = 56;
+                    shade.aokChannel = 1;
                     shade.flipCommands = shade.flipPosition = false;
                     ui.toElement(elShade, shade);
                     this.showEditShade(true);
                     elShade.setAttribute('data-bitlength', shade.bitLength);
+                    this.onShadeProtoChanged(document.getElementById('selShadeProto'));
                 }
             });
         }
@@ -3619,9 +3631,25 @@ class Somfy {
     }
     pairShade(shadeId) {
         let shadeType = parseInt(document.getElementById('somfyShade').getAttribute('data-shadetype'), 10);
+        let shadeProto = parseInt(document.getElementById('somfyShade').getAttribute('data-proto'), 10);
         let div = document.createElement('div');
         let html = `<div id="divPairing" class="instructions" data-type="link-remote" data-shadeid="${shadeId}">`;
-        if (shadeType === 5 || shadeType === 6) {
+        if (shadeProto === 10) {
+            html += '<div>Pair this A-OK / AC136 motor with ESPSomfy RTS</div>';
+            html += '<hr style="width:100%;margin:0px;"></hr>';
+            html += '<ul style="width:100%;margin:0px;padding-left:20px;font-size:14px;">';
+            html += '<li>Put the motor in learn mode (PROG on the motor or per the motor manual). You typically have about 10 seconds.</li>';
+            html += '<li>Press Prog below. Most A-OK motors jog on PROGRAM; some want UP instead.</li>';
+            html += '<li>If it jogs, press Shade Paired. If not, try Prog again, then try Up on the home screen while still in learn mode.</li>';
+            html += '<li>Use a unique Remote Address and match A-OK Channel to the AC136 channel for this motor.</li>';
+            html += '</ul>';
+            html += `<div class="button-container">`;
+            html += `<button id="btnSendPairing" type="button" style="padding-left:20px;padding-right:20px;display:inline-block;">Prog</button>`;
+            html += `<button id="btnMarkPaired" type="button" style="padding-left:20px;padding-right:20px;display:inline-block;" onclick="somfy.setPaired(${shadeId}, true);">Shade Paired</button>`;
+            html += `<button id="btnStopPairing" type="button" style="padding-left:20px;padding-right:20px;display:inline-block" >Close</button>`;
+            html += `</div>`;
+        }
+        else if (shadeType === 5 || shadeType === 6) {
             html += '<div>Follow the instructions below to pair ESPSomfy RTS with an RTS Garage Door motor</div>';
             html += '<hr style="width:100%;margin:0px;"></hr>';
             html += '<ul style="width:100%;margin:0px;padding-left:20px;font-size:14px;">';

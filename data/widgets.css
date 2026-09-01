@@ -223,6 +223,19 @@
 #somfyShade #divShadeBitLength {
     display:inline-block;
 }
+#somfyShade #divAokChannel {
+    display: none;
+}
+#somfyShade[data-proto="10"] #divAokChannel {
+    display: inline-block;
+}
+#somfyShade[data-proto="10"] #divShadeBitLength,
+#somfyShade[data-proto="10"] #btnSetRollingCode,
+#somfyShade[data-proto="10"] #btnLinkRemote,
+#somfyShade[data-proto="10"] #btnUnpairShade,
+#somfyShade[data-proto="10"] #divLinkedRemoteList {
+    display: none !important;
+}
 #somfyShade[data-proto="8"] #divGPIOControl,
 #somfyShade[data-proto="9"] #divGPIOControl {
     display: inline-block;

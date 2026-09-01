@@ -10,6 +10,7 @@
 #include "MQTT.h"
 #include "ConfigFile.h"
 #include "GitOTA.h"
+#include "Aok.h"
 
 extern Preferences pref;
 extern SomfyShadeController somfy;
@@ -701,6 +702,7 @@ void SomfyShade::clear() {
   this->tiltTime = 7000;
   this->stepSize = 100;
   this->repeats = 1;
+  this->aokChannel = 1;
   this->sortOrder = 255;
 }
 void SomfyRoom::clear() {
@@ -3225,6 +3227,12 @@ int8_t SomfyShade::fromJSON(JsonObject &obj) {
     if(obj.containsKey("hasTilt")) this->tiltType = static_cast<bool>(obj["hasTilt"]) ? tilt_types::none : tilt_types::tiltmotor;
     if(obj.containsKey("bitLength")) this->bitLength = obj["bitLength"];
     if(obj.containsKey("proto")) this->proto = static_cast<radio_proto>(obj["proto"].as<uint8_t>());
+    if(obj.containsKey("aokChannel")) {
+      uint8_t ch = obj["aokChannel"].as<uint8_t>();
+      if(ch < 1) ch = 1;
+      if(ch > 16) ch = 16;
+      this->aokChannel = ch;
+    }
     if(obj.containsKey("sunSensor")) this->setSunSensor(obj["sunSensor"]);
     if(obj.containsKey("simMy")) this->setSimMy(obj["simMy"]);
     if(obj.containsKey("light")) this->setLight(obj["light"]);
@@ -3320,6 +3328,7 @@ void SomfyShade::toJSONRef(JsonResponse &json) {
   json.addElem("flipPosition", this->flipCommands);
   json.addElem("bitLength", this->bitLength);
   json.addElem("proto", static_cast<uint8_t>(this->proto));
+  json.addElem("aokChannel", this->aokChannel);
   json.addElem("flags", this->flags);
   json.addElem("sunSensor", this->hasSunSensor());
   json.addElem("hasLight", this->hasLight());
@@ -3350,6 +3359,7 @@ void SomfyShade::toJSON(JsonResponse &json) {
   json.addElem("shadeType", static_cast<uint8_t>(this->shadeType));
   json.addElem("bitLength", this->bitLength);
   json.addElem("proto", static_cast<uint8_t>(this->proto));
+  json.addElem("aokChannel", this->aokChannel);
   json.addElem("flags", this->flags);
   json.addElem("flipCommands", this->flipCommands);
   json.addElem("flipPosition", this->flipPosition);
@@ -3932,6 +3942,44 @@ void SomfyRemote::sendSensorCommand(int8_t isWindy, int8_t isSunny, uint8_t repe
 }
 void SomfyRemote::sendCommand(somfy_commands cmd) { this->sendCommand(cmd, this->repeats); }
 void SomfyRemote::sendCommand(somfy_commands cmd, uint8_t repeat, uint8_t stepSize) {
+  if(this->proto == radio_proto::AOK) {
+    somfy_commands mapped = this->transformCommand(cmd);
+    uint8_t aokCmd = AOK_CMD_STOP;
+    switch(mapped) {
+      case somfy_commands::Up:
+      case somfy_commands::MyUp:
+      case somfy_commands::StepUp:
+        aokCmd = AOK_CMD_UP;
+        break;
+      case somfy_commands::Down:
+      case somfy_commands::MyDown:
+      case somfy_commands::StepDown:
+        aokCmd = AOK_CMD_DOWN;
+        break;
+      case somfy_commands::Prog:
+        aokCmd = AOK_CMD_PROG;
+        break;
+      default:
+        aokCmd = AOK_CMD_STOP;
+        break;
+    }
+    this->lastFrame.cmd = mapped;
+    this->lastFrame.remoteAddress = this->getRemoteAddress();
+    this->lastFrame.proto = radio_proto::AOK;
+    this->lastFrame.repeats = AOK_REPEAT;
+    this->lastFrame.bitLength = 0;
+    this->lastFrame.rollingCode = 0;
+    this->lastFrame.valid = true;
+    this->lastFrame.processed = false;
+    Serial.printf("A-OK CMD:%s ADDR:%u CH:%u REPEAT:%u\n",
+      translateSomfyCommand(mapped).c_str(),
+      this->lastFrame.remoteAddress,
+      this->aokChannel,
+      AOK_REPEAT);
+    somfy.transceiver.sendAokCommand(this->getRemoteAddress(), this->aokChannel, aokCmd);
+    somfy.processFrame(this->lastFrame, true);
+    return;
+  }
   this->lastFrame.rollingCode = this->getNextRollingCode();
   this->lastFrame.remoteAddress = this->getRemoteAddress();
   this->lastFrame.cmd = this->transformCommand(cmd);
@@ -3992,6 +4040,10 @@ void SomfyRemote::repeatFrame(uint8_t repeat) {
     return;
   else if(this->proto == radio_proto::GP_Remote) {
     this->triggerGPIOs(this->lastFrame);
+    return;
+  }
+  else if(this->proto == radio_proto::AOK) {
+    this->sendCommand(this->lastFrame.cmd, repeat);
     return;
   }
   somfy.transceiver.beginTransmit();
@@ -5115,6 +5167,24 @@ void Transceiver::loop() {
   }
 }
 somfy_frame_t& Transceiver::lastFrame() { return this->frame; }
+void Transceiver::sendAokCommand(uint32_t remoteId, uint8_t channel, uint8_t command) {
+  if(!this->config.enabled) return;
+  uint8_t bits[AOK_BIT_COUNT];
+  aokEncodeBits(remoteId, channel, command, bits);
+  this->disableReceive();
+  pinMode(this->config.TXPin, OUTPUT);
+  digitalWrite(this->config.TXPin, LOW);
+  ELECHOUSE_cc1101.setMHZ(AOK_FREQUENCY);
+  ELECHOUSE_cc1101.SetTx();
+  for(uint8_t i = 0; i < AOK_REPEAT; i++) {
+    aokTransmit(this->config.TXPin, bits);
+    esp_task_wdt_reset();
+  }
+  digitalWrite(this->config.TXPin, LOW);
+  ELECHOUSE_cc1101.setSidle();
+  ELECHOUSE_cc1101.setMHZ(this->config.frequency);
+  this->enableReceive();
+}
 void Transceiver::beginTransmit() {
     if(this->config.enabled) {
       this->disableReceive();

@@ -22,11 +22,12 @@
 
 
 enum class radio_proto : byte { // Ordinal byte 0-255
-  RTS = 0x00,
-  RTW = 0x01,
-  RTV = 0x02,
-  GP_Relay = 0x08,
-  GP_Remote = 0x09
+    RTS = 0x00,
+    RTW = 0x01,
+    RTV = 0x02,
+    GP_Relay = 0x08,
+    GP_Remote = 0x09,
+    AOK = 0x0A
 };
 enum class somfy_commands : byte {
     Unknown0 = 0x0,
@@ -237,6 +238,7 @@ class SomfyRemote {
     uint8_t flags = 0;
     uint8_t bitLength = 0;
     uint8_t repeats = 1;
+    uint8_t aokChannel = 1;
     virtual bool isLastCommand(somfy_commands cmd);
     char *getRemotePrefId() {return m_remotePrefId;}
     virtual void toJSON(JsonResponse &json);
@@ -512,6 +514,7 @@ class Transceiver {
     void disableReceive();
     somfy_frame_t& lastFrame();
     void sendFrame(byte *frame, uint8_t sync, uint8_t bitLength = 56);
+    void sendAokCommand(uint32_t remoteId, uint8_t channel, uint8_t command);
     void beginTransmit();
     void endTransmit();
     void emitFrame(somfy_frame_t *frame, somfy_rx_t *rx = nullptr);
